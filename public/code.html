@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Multi-Session Bot - Malvin Dev</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #333;
+        }
+
+        .header .credit {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .connection-form {
+            margin-bottom: 2rem;
+        }
+
+        .connection-form h2 {
+            color: #555;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        input[type="tel"] {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="tel"]:focus {
+            outline: none;
+            border-color: #1e3c72;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 24px;
+            background: #1e3c72;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #2a5298;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.4);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .pairing-code-display {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .code-box {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1e3c72;
+            letter-spacing: 0.5rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 10px;
+            border: 2px dashed #1e3c72;
+        }
+
+        .status-message {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            text-align: center;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .active-sessions {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .session-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .session-item .phone {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .session-item .status {
+            font-size: 0.875rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 WhatsApp Bot Multi-Session</h1>
+            <p class="credit">by dev|malvin</p>
+        </div>
+        
+        <div class="connection-form">
+            <h2>Connect Your WhatsApp</h2>
+            <input 
+                type="tel" 
+                id="phoneNumber" 
+                placeholder="Enter phone number (e.g., 263714757857)"
+                maxlength="15"
+            >
+            <button onclick="connectWhatsApp()" id="connectBtn">Get Pairing Code</button>
+        </div>
+
+        <div id="pairingCodeDisplay" class="pairing-code-display" style="display: none;">
+            <h3>Your Pairing Code:</h3>
+            <div class="code-box" id="codeBox"></div>
+            <p>Enter this code in WhatsApp > Linked Devices > Link a Device</p>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <div class="active-sessions">
+            <h3>Active Sessions</h3>
+            <div id="sessionsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        async function connectWhatsApp() {
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
+            const button = document.querySelector('button');
+            const statusDiv = document.getElementById('statusMessage');
+            const pairingDiv = document.getElementById('pairingCodeDisplay');
+            const codeBox = document.getElementById('codeBox');
+
+            if (!phoneNumber) {
+                showStatus('Please enter a phone number', 'error');
+                return;
+            }
+
+            // Validate phone number format
+            if (!/^\d{10,15}$/.test(phoneNumber)) {
+                showStatus('Please enter a valid phone number (digits only)', 'error');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Generating Code...';
+            showStatus('Connecting to WhatsApp...', 'success');
+
+            try {
+                const response = await fetch(`${API_URL}/create-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ phoneNumber })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Display pairing code
+                    codeBox.textContent = formatPairingCode(data.pairingCode);
+                    pairingDiv.style.display = 'block';
+                    showStatus('Pairing code generated! Enter it in WhatsApp', 'success');
+                    
+                    // Store session ID
+                    localStorage.setItem('currentSessionId', data.sessionId);
+                    
+                    // Check connection status
+                    checkConnectionStatus(data.sessionId);
+                    
+                    // Refresh active sessions
+                    loadActiveSessions();
+                } else {
+                    showStatus(data.error || 'Failed to create session', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus('Connection failed. Please try again.', 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Get Pairing Code';
+            }
+        }
+
+        function formatPairingCode(code) {
+            // Format code with dashes for better readability
+            return code.match(/.{1,4}/g).join('-');
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        async function checkConnectionStatus(sessionId) {
+            const checkInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_URL}/session-status/${sessionId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'connected') {
+                        showStatus('✅ WhatsApp connected successfully!', 'success');
+                        clearInterval(checkInterval);
+                        document.getElementById('pairingCodeDisplay').style.display = 'none';
+                        loadActiveSessions();
+                    }
+                } catch (error) {
+                    console.error('Status check error:', error);
+                }
+            }, 3000); // Check every 3 seconds
+            
+            // Stop checking after 2 minutes
+            setTimeout(() => clearInterval(checkInterval), 120000);
+        }
+
+        async function loadActiveSessions() {
+            try {
+                const response = await fetch(`${API_URL}/active-sessions`);
+                const data = await response.json();
+                
+                const sessionsList = document.getElementById('sessionsList');
+                
+                if (data.sessions.length === 0) {
+                    sessionsList.innerHTML = '<p style="text-align: center; color: #999;">No active sessions</p>';
+                    return;
+                }
+                
+                sessionsList.innerHTML = data.sessions.map(session => `
+                    <div class="session-item">
+                        <span class="phone">📱 ${session.phoneNumber}</span>
+                        <span class="status">${session.status}</span>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+            }
+        }
+
+        // Load active sessions on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadActiveSessions();
+        });
+
+        // Allow Enter key to submit
+        document.getElementById('phoneNumber').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                connectWhatsApp();
+            }
+        });
+    </script>
+</body>
+</html>
